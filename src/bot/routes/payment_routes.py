@@ -35,7 +35,7 @@ async def order_callback(
 
     user_id = callback.from_user.id
     tariff_id = callback_data.tariff_id
-    logger.trace(f"User: {user_id!r} choose tariff №{tariff_id}")
+    logger.trace(f"User: {user_id} choose tariff №{tariff_id}")
 
     tariff = await get_tariff(tariff_id)
     if tariff is None:
@@ -110,7 +110,7 @@ async def command_refund_handler(
     user_id = message.from_user.id
     transaction_id = command.args
 
-    logger.debug(f"User {user_id!r} refund transaction {transaction_id!r}")
+    logger.debug(f"User: {user_id} refund transaction {transaction_id!r}")
     if get_settings().pay.debug:
         await refund()
         chat_id = get_settings().bot.payments_chat_id
