@@ -8,4 +8,4 @@ GET_LINK_BTN = "Получить ссылку"
 BUY_BTN = "Продлить подписку"
 
 # Покупка подписки
-BUY_DAYS_BTN = "{days} дней - {price}₽"
+BUY_DAYS_BTN = "{days} дней - {price} ⭐️"
