@@ -37,6 +37,7 @@ class BotSettings(BaseSettings):
 
     token: str = Field(description="Telegram bot token")
     admin_id: int = Field(default="Admin Telegram ID")
+    payments_chat_id: int = Field(default="Chat ID for payments info")
     allowed_updates: list[str] = [
         "message",
         "callback_query",

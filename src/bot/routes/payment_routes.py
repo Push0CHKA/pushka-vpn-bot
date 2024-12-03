@@ -8,7 +8,8 @@ from pydantic import ValidationError
 from src.bot.callback.user_callback import BuyCallback
 from src.bot.msg import user_msg
 from src.bot.utils.filters import ChatTypeFilter
-from src.utils.payment import get_tariff
+from src.utils.bot import send_chat_msg
+from src.utils.payment import get_tariff, gen_payment_msg, gen_refund_msg
 from src.utils.settings import get_settings
 
 
@@ -72,11 +73,16 @@ async def pre_checkout_handler(pre_checkout_query: PreCheckoutQuery):
 
 
 @payment_router.message(F.successful_payment)
-async def process_successful_payment(message: Message):
+async def process_successful_payment(message: Message, bot: Bot):
     """Successful payment handler"""
     logger.debug(f"User: {message.from_user.id!r} successful payment")
     charge_id = message.successful_payment.telegram_payment_charge_id
+    payments_chat_id = get_settings().bot.payments_chat_id
+    text = gen_payment_msg(message.successful_payment)
     tariff_id = message.successful_payment.invoice_payload.split("_")[-1]
+
+    await send_chat_msg(bot, payments_chat_id, text)
+
     await message.answer(
         user_msg.SUCCESS_PAY_MSG.format(charge_id=charge_id),
         # TODO уточнить список возможных идентификаторов
@@ -103,8 +109,12 @@ async def command_refund_handler(
 
     user_id = message.from_user.id
     transaction_id = command.args
+
     logger.debug(f"User {user_id!r} refund transaction {transaction_id!r}")
     if get_settings().pay.debug:
         await refund()
+        chat_id = get_settings().bot.payments_chat_id
+        text = gen_refund_msg(user_id, transaction_id)
+        await send_chat_msg(bot, chat_id, text)
     else:
         await message.answer(user_msg.NO_REFUND_MSG)
