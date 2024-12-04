@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class OrmSchema(BaseModel):
@@ -13,7 +13,7 @@ class IntIDSchema(OrmSchema):
 
 
 class UUIDIndexSchema(OrmSchema):
-    id: uuid.UUID
+    id: uuid.UUID = Field(default_factory=lambda: uuid.uuid4())
 
 
 class CreateDateTimeMixinSchema(OrmSchema):

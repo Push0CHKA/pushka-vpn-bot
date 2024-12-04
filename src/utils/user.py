@@ -14,7 +14,7 @@ async def add_user(user_id: int):
                 session,
                 obj_in=UserSchemaCreate(id=user_id, status=StatusTypeEnum.new),
             )
-        logger.debug(f"Create new user. Id: {user_id}")
+        logger.debug(f"Create new user. ID: {user_id}")
     except IntegrityError:
         logger.trace(f"User with ID: {user_id} already exist")
     except SQLAlchemyError as e:

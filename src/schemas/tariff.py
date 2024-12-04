@@ -8,6 +8,7 @@ from src.schemas.common import (
 class TariffSchemaCreate(OrmSchema):
     price: int
     days: int
+    is_active: bool = True
 
 
 class TariffSchema(

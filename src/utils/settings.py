@@ -18,6 +18,15 @@ class StatusTypeEnum(Enum):
     not_paid = "not paid"
 
 
+class TransactionStatusEnum(Enum):
+    paid = "paid"
+    refund = "refund"
+
+
+class CurrencyEnum(Enum):
+    xtr = "xtr"
+
+
 class EnvSettings(BaseSettings):
     """The utils for real sys / docker environment
     it is not for dotenv..."""

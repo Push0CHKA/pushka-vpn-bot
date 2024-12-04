@@ -22,7 +22,7 @@ user_router.message.filter(ChatTypeFilter(["private"]))
 async def start_cmd(message: types.Message):
     """Start command handler"""
     user_id = message.from_user.id
-    logger.trace(f"User: {user_id}. Command start handler")
+    logger.trace(f"User {user_id}. Command start handler")
     await add_user(user_id)
     text = START_USER.format(id=user_id)
     await message.answer(text=text, reply_markup=user_kb.main_menu_inkb())
@@ -32,7 +32,7 @@ async def start_cmd(message: types.Message):
 async def main_menu(callback: types.CallbackQuery):
     """Main menu handler"""
     user_id = callback.from_user.id
-    logger.trace(f"User: {user_id}. Main menu handler")
+    logger.trace(f"User {user_id}. Main menu handler")
     await callback.message.edit_text(
         text=MAIN_MENU_MSG.format(id=user_id),
         reply_markup=user_kb.main_menu_inkb(),
@@ -43,7 +43,7 @@ async def main_menu(callback: types.CallbackQuery):
 async def menu_sub(callback: types.CallbackQuery):
     """Subscription menu handler"""
     user_id = callback.from_user.id
-    logger.trace(f"User: {user_id}. Main buy handler")
+    logger.trace(f"User {user_id}. Main buy handler")
     await callback.message.edit_text(
         text=SUB_MENU_MSG, reply_markup=await user_kb.get_sub_menu()
     )

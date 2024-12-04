@@ -3,13 +3,19 @@ from aiogram.types import LabeledPrice, PreCheckoutQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from loguru import logger
 from aiogram import Router, types, F, Bot
-from pydantic import ValidationError
+from sqlalchemy.exc import SQLAlchemyError
 
 from src.bot.callback.user_callback import BuyCallback
 from src.bot.msg import user_msg
 from src.bot.utils.filters import ChatTypeFilter
+from src.database.database import AsyncSessionLocal
 from src.utils.bot import send_chat_msg
-from src.utils.payment import get_tariff, gen_payment_msg, gen_refund_msg
+from src.utils.payment import (
+    get_tariff,
+    gen_payment_msg,
+    create_transaction,
+    transaction_refund,
+)
 from src.utils.settings import get_settings
 
 
@@ -35,10 +41,12 @@ async def order_callback(
 
     user_id = callback.from_user.id
     tariff_id = callback_data.tariff_id
-    logger.trace(f"User: {user_id} choose tariff №{tariff_id}")
 
-    tariff = await get_tariff(tariff_id)
-    if tariff is None:
+    logger.trace(f"User {user_id} choose tariff №{tariff_id}")
+    try:
+        async with AsyncSessionLocal() as session:
+            tariff = await get_tariff(session, tariff_id=tariff_id)
+    except SQLAlchemyError:
         await bot.send_message(
             callback.from_user.id, user_msg.COMMON_ERROR_MSG
         )
@@ -67,7 +75,7 @@ async def order_callback(
 async def pre_checkout_handler(pre_checkout_query: PreCheckoutQuery):
     """Payment pre checkout"""
     logger.trace(
-        f"User: {pre_checkout_query.from_user.id!r} pre checkout payment"
+        f"User {pre_checkout_query.from_user.id} pre checkout payment"
     )
     await pre_checkout_query.answer(ok=True)
 
@@ -75,46 +83,45 @@ async def pre_checkout_handler(pre_checkout_query: PreCheckoutQuery):
 @payment_router.message(F.successful_payment)
 async def process_successful_payment(message: Message, bot: Bot):
     """Successful payment handler"""
-    logger.debug(f"User: {message.from_user.id!r} successful payment")
+    logger.debug(f"User {message.from_user.id} successful payment")
     charge_id = message.successful_payment.telegram_payment_charge_id
     payments_chat_id = get_settings().bot.payments_chat_id
     text = gen_payment_msg(message.successful_payment)
-    tariff_id = message.successful_payment.invoice_payload.split("_")[-1]
+
+    try:
+        async with AsyncSessionLocal() as session:
+            await create_transaction(
+                session, payment=message.successful_payment
+            )
+    except (SQLAlchemyError, ValueError) as e:
+        logger.critical(f"Create transaction failed: {e}")
+    except Exception as e:
+        logger.critical(f"Unhandled error when create transaction: {e}")
 
     await send_chat_msg(bot, payments_chat_id, text)
 
-    await message.answer(
-        user_msg.SUCCESS_PAY_MSG.format(charge_id=charge_id),
-        # TODO уточнить список возможных идентификаторов
-        # message_effect_id=gen_successful_effect(),
-    )
+    await message.answer(user_msg.SUCCESS_PAY_MSG.format(charge_id=charge_id))
 
 
 @payment_router.message(Command("refund"))
 async def command_refund_handler(
     message: Message, bot: Bot, command: CommandObject
-) -> None:
-    """Test transaction refund command handler"""
-
-    async def refund():
-        try:
-            await bot.refund_star_payment(
-                user_id=user_id, telegram_payment_charge_id=transaction_id
-            )
-        except ValidationError:
-            await message.answer(user_msg.NO_TRANSACTION_ID_MSG)
-        except Exception as e:
-            logger.error(f"Transaction {transaction_id!r} refund failed: {e}")
-            await message.answer(user_msg.COMMON_ERROR_MSG)
+):
+    """Transaction refund command handler"""
 
     user_id = message.from_user.id
-    transaction_id = command.args
+    payment_charge_id = command.args
 
-    logger.debug(f"User: {user_id} refund transaction {transaction_id!r}")
+    logger.trace(f"User {user_id} refund transaction {payment_charge_id!r}")
+
     if get_settings().pay.debug:
-        await refund()
-        chat_id = get_settings().bot.payments_chat_id
-        text = gen_refund_msg(user_id, transaction_id)
-        await send_chat_msg(bot, chat_id, text)
-    else:
+        async with AsyncSessionLocal() as session:
+            await transaction_refund(
+                session=session,
+                bot=bot,
+                message=message,
+                user_id=user_id,
+                payment_charge_id=payment_charge_id,
+            )
+    elif not get_settings().pay.debug:
         await message.answer(user_msg.NO_REFUND_MSG)
