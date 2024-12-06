@@ -1,23 +1,80 @@
 from loguru import logger
-from sqlalchemy.exc import SQLAlchemyError, IntegrityError
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError, NoResultFound
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.crud.user import get_user_crud
-from src.database.database import AsyncSessionLocal
-from src.schemas.user import UserSchemaCreate
+from src.crud.user import UserLinkCrud, UserCrud
+from src.models import User
+from src.schemas.user import (
+    UserSchemaCreate,
+    UserSchema,
+    UserLinkSchema,
+    UserLinkSchemaCreate,
+)
 from src.utils.settings import StatusTypeEnum
 
 
-async def add_user(user_id: int):
+async def add_user(
+    session: AsyncSession, *, crud: UserCrud, user_id: int
+) -> UserSchema:
     try:
-        async with AsyncSessionLocal() as session:
-            await get_user_crud().create_with_commit(
-                session,
-                obj_in=UserSchemaCreate(id=user_id, status=StatusTypeEnum.new),
-            )
+        user = await crud.create_with_commit(
+            session,
+            obj_in=UserSchemaCreate(id=user_id, status=StatusTypeEnum.new),
+        )
         logger.debug(f"Create new user. ID: {user_id}")
+        return user
     except IntegrityError:
         logger.trace(f"User with ID: {user_id} already exist")
+        raise
     except SQLAlchemyError as e:
         logger.error(
             f"Unhandled sqlalchemy error while command 'start' handling: {e}"
         )
+        raise
+
+
+async def get_user(
+    session: AsyncSession, *, crud: UserCrud, user_id: int
+) -> UserSchema:
+    try:
+        return await crud.get_one(session, id=user_id)
+    except NoResultFound:
+        logger.trace(f"User with ID: {user_id} not found exist")
+        return await add_user(session, user_id=user_id, crud=crud)
+    except SQLAlchemyError as e:
+        logger.error(
+            f"Unhandled sqlalchemy error while command 'start' handling: {e}"
+        )
+        raise
+
+
+async def add_user_link(
+    session: AsyncSession, *, crud: UserLinkCrud, user_id: int, link: str
+) -> UserLinkSchema:
+    try:
+        return await crud.create_with_commit(
+            session, obj_in=UserLinkSchemaCreate(user_id=user_id, link=link)
+        )
+    except SQLAlchemyError as e:
+        logger.error(f"Add link for user {user_id} failed: {e}")
+        raise
+
+
+async def update_user_status(
+    session: AsyncSession,
+    *,
+    crud: UserCrud,
+    user_id: int,
+    status: StatusTypeEnum,
+):
+    try:
+        await crud.update(
+            session,
+            update_filter={User.id.name: user_id},
+            update_values={User.status.name: status},
+        )
+        await session.flush()
+        await session.commit()
+    except SQLAlchemyError as e:
+        logger.error(f"Update user {user_id} status failed: {e}")
+        raise

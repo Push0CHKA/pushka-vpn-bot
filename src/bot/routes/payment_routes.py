@@ -11,12 +11,12 @@ from src.bot.utils.filters import ChatTypeFilter
 from src.database.database import AsyncSessionLocal
 from src.utils.bot import send_chat_msg
 from src.utils.payment import (
-    get_tariff,
     gen_payment_msg,
     create_transaction,
     transaction_refund,
 )
 from src.utils.settings import get_settings
+from src.utils.tariff import get_tariff
 
 
 def get_payment_router() -> Router:
