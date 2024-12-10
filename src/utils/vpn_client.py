@@ -1,14 +1,20 @@
+from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy.exc import SQLAlchemyError
+from asyncpg.pgproto.pgproto import timedelta
+from sqlalchemy.exc import SQLAlchemyError, NoResultFound
 
-from src.crud.user import get_user_crud, get_user_link_crud
+from src.crud.user import (
+    get_user_crud,
+    get_user_link_crud,
+    get_user_link_with_user_crud,
+)
 from src.crud.vpn_server import get_vpn_server_crud
 from src.database.database import AsyncSessionLocal
 from src.schemas.user import UserLinkSchema
-from src.utils.settings import StatusTypeEnum
+from src.utils.settings import StatusTypeEnum, get_settings
 from src.utils.tariff import get_tariff
-from src.utils.user import get_user, add_user_link
+from src.utils.user import get_user, add_user_link, get_user_link
 from src.utils.vpn_server import get_vpn_data
 from src.utils.vpn_server_request import ClientCreateError, add_vpn_client
 
@@ -28,6 +34,7 @@ async def create_client(
 
         try:
             tariff = await get_tariff(session, tariff_id=tariff_id)
+            expire_date = datetime.now() + timedelta(days=tariff.days)
         except SQLAlchemyError as e:
             raise ClientCreateError(f"Get tariff failed: {e}")
 
@@ -52,7 +59,25 @@ async def create_client(
 
         try:
             return await add_user_link(
-                session, link=link, user_id=user_id, crud=get_user_link_crud()
+                session,
+                link=link,
+                user_id=user_id,
+                expire_date=expire_date,
+                crud=get_user_link_crud(),
             )
         except SQLAlchemyError as e:
             raise ClientCreateError(f"Add user {user_id} link failed: {e}")
+
+
+async def get_or_create_user_link(user_id: int) -> UserLinkSchema:
+    try:
+        async with AsyncSessionLocal() as session:
+            return await get_user_link(
+                session, crud=get_user_link_with_user_crud(), user_id=user_id
+            )
+    except NoResultFound:
+        return await create_client(
+            tariff_id=get_settings().pay.trial_id,
+            user_id=user_id,
+            server_id=get_settings().pay.server_id,
+        )

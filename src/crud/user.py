@@ -54,9 +54,9 @@ class UserLinkWithUserCrud(
 
 @cache
 def get_user_link_crud() -> UserLinkCrud:
-    return UserLinkCrud(User)
+    return UserLinkCrud(UserLink)
 
 
 @cache
 def get_user_link_with_user_crud() -> UserLinkWithUserCrud:
-    return UserLinkWithUserCrud(User)
+    return UserLinkWithUserCrud(UserLink)

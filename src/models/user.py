@@ -21,12 +21,8 @@ class User(DateTimeCreateMixin, Base):
     status: Mapped[StatusTypeEnum] = Column(
         ENUM(StatusTypeEnum), nullable=False, comment="Transaction source type"
     )
-    subscription_expire_date: Mapped[datetime] = Column(
-        DateTime, nullable=True, default=None
-    )
-
-    links: Mapped[list["UserLink"]] = relationship(
-        "UserLink", back_populates="user"
+    links: Mapped["UserLink"] = relationship(
+        "UserLink", back_populates="user", uselist=True, lazy="selectin"
     )
     transactions: Mapped[list["Transaction"]] = relationship(
         "Transaction", back_populates="user"
@@ -38,9 +34,14 @@ class UserLink(UUIDMixin, DateTimeCreateMixin, Base):
         ForeignKey(id_column("User.id"), ondelete="SET NULL"),
         nullable=False,
         primary_key=False,
+        unique=True,
     )
     link: Mapped[str] = Column(
         String, unique=True, nullable=False, comment="VPN link"
     )
-
-    user: Mapped["User"] = relationship("User", back_populates="links")
+    expire_date: Mapped[datetime] = Column(
+        DateTime, nullable=True, default=None
+    )
+    user: Mapped["User"] = relationship(
+        "User", back_populates="links", uselist=True, lazy="selectin"
+    )

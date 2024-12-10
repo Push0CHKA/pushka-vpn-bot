@@ -13,7 +13,6 @@ from src.utils.settings import StatusTypeEnum
 class UserSchemaCreate(OrmSchema):
     id: int
     status: StatusTypeEnum
-    subscription_expire_date: datetime | None = None
 
 
 class UserSchema(UserSchemaCreate, CreateDateTimeMixinSchema): ...
@@ -38,6 +37,11 @@ class Fk(OrmSchema):
 
 class UserLinkSchemaCommon(OrmSchema):
     link: str
+    expire_date: datetime
+
+    @property
+    def get_pretty_date(self):
+        return self.expire_date.strftime("%d\\.%m\\.%Y")
 
 
 class UserLinkSchemaCreate(UserLinkSchemaCommon, Fk): ...

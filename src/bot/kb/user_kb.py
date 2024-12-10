@@ -1,4 +1,5 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from sqlalchemy import true
 
 from src.bot.callback.user_callback import ButtonCallback, BuyCallback
 from src.bot.kb import user_btn
@@ -13,16 +14,10 @@ def main_menu_inkb() -> InlineKeyboardMarkup:
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text=user_btn.GET_LINK_BTN,
-                    callback_data=ButtonCallback(button=f"link").pack(),
-                )
-            ],
-            [
-                InlineKeyboardButton(
                     text=user_btn.BUY_BTN,
                     callback_data=ButtonCallback(button="buymenu").pack(),
                 )
-            ],
+            ]
         ]
     )
 
@@ -30,7 +25,9 @@ def main_menu_inkb() -> InlineKeyboardMarkup:
 async def get_sub_menu():
     async with AsyncSessionLocal() as session:
         tariffs = await get_tariff_crud().get_multi(
-            session, order_by=Tariff.days
+            session,
+            order_by=Tariff.days,
+            operator_expressions=[Tariff.is_active == true()],
         )
     return InlineKeyboardMarkup(
         inline_keyboard=[

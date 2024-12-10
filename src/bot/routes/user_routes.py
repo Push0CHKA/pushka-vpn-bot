@@ -1,17 +1,18 @@
 from loguru import logger
-
 from aiogram import Router, types, F
 from aiogram.filters import CommandStart
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 
 from src.bot.callback.user_callback import ButtonCallback
 from src.bot.kb import user_kb
 from src.bot.msg import user_msg
-from src.bot.msg.user_msg import START_USER, MAIN_MENU_MSG, SUB_MENU_MSG
+from src.bot.msg.user_msg import MAIN_MENU_MSG, SUB_MENU_MSG, START_USER
 from src.bot.utils.filters import ChatTypeFilter
 from src.crud.user import get_user_crud
 from src.database.database import AsyncSessionLocal
 from src.utils.user import add_user
+from src.utils.vpn_client import get_or_create_user_link
+from src.utils.vpn_server_request import ClientCreateError
 
 
 def get_user_router() -> Router:
@@ -30,10 +31,23 @@ async def start_cmd(message: types.Message):
     try:
         async with AsyncSessionLocal() as session:
             await add_user(session, user_id=user_id, crud=get_user_crud())
+    except IntegrityError:
+        ...  # user already exist
     except SQLAlchemyError:
         await message.answer(text=user_msg.COMMON_ERROR_MSG)
         return
-    text = START_USER.format(id=user_id)
+
+    try:
+        user_link = await get_or_create_user_link(user_id=user_id)
+    except ClientCreateError as e:
+        logger.error(e)
+        await message.answer(text=user_msg.COMMON_ERROR_MSG)
+        return
+
+    text = START_USER.format(
+        id=user_id, link=user_link.link, expire_date=user_link.get_pretty_date
+    )
+
     await message.answer(text=text, reply_markup=user_kb.main_menu_inkb())
 
 
