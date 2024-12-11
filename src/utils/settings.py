@@ -48,6 +48,7 @@ class BotSettings(BaseSettings):
     token: str = Field(description="Telegram bot token")
     admin_id: int = Field(default="Admin Telegram ID")
     payments_chat_id: int = Field(default="Chat ID for payments info")
+    admin_nickname: str = Field(description="Telegra admin nickname")
     allowed_updates: list[str] = [
         "message",
         "callback_query",
@@ -72,7 +73,6 @@ class PaymentSettings(BaseSettings):
     currency: Annotated[str, "Payment currency"] = "XTR"
     trial_id: int = Field(description="Trial tariff ID")
     server_id: UUID = Field(description="VPN server ID")
-    admin_nickname: str = Field(description="Telegra admin nickname")
     message_effect_id_list: Annotated[
         list[str], "Success payment effect ID"
     ] = [
