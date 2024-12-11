@@ -54,7 +54,7 @@ class BotSettings(BaseSettings):
         "pre_checkout_query",
     ]
     default_commands: list[BotCommand] = [
-        BotCommand(command="start", description="Перезапустить бота"),
+        BotCommand(command="start", description="Главное меню"),
         BotCommand(command="help", description="Помощь"),
         BotCommand(command="pay", description="Оплатить подписку"),
         BotCommand(command="refund", description="Возврат средств"),
@@ -72,6 +72,7 @@ class PaymentSettings(BaseSettings):
     currency: Annotated[str, "Payment currency"] = "XTR"
     trial_id: int = Field(description="Trial tariff ID")
     server_id: UUID = Field(description="VPN server ID")
+    admin_nickname: str = Field(description="Telegra admin nickname")
     message_effect_id_list: Annotated[
         list[str], "Success payment effect ID"
     ] = [
