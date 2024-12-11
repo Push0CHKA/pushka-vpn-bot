@@ -1,6 +1,6 @@
 import uuid
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class AdminAuth(BaseModel):
@@ -17,7 +17,7 @@ class ClientSettings(BaseModel):
     expiryTime: int
     enable: bool = True
     tgId: str = ""
-    subId: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    subId: uuid.UUID
     reset: int = 0
     flow: str = "xtls-rprx-vision"
 

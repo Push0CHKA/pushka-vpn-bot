@@ -1,7 +1,8 @@
 import typing
+import uuid
 from datetime import datetime
 
-from sqlalchemy import Column, BigInteger, String, ForeignKey, DateTime
+from sqlalchemy import Column, BigInteger, String, ForeignKey, DateTime, UUID
 from sqlalchemy.dialects.postgresql import ENUM
 from sqlalchemy.orm import Mapped, relationship
 
@@ -38,6 +39,12 @@ class UserLink(UUIDMixin, DateTimeCreateMixin, Base):
     )
     link: Mapped[str] = Column(
         String, unique=True, nullable=False, comment="VPN link"
+    )
+    client_id: Mapped[uuid.UUID] = Column(
+        UUID, unique=True, nullable=False, comment="VPN client ID"
+    )
+    client_sub_id: Mapped[uuid.UUID] = Column(
+        UUID, unique=True, nullable=False, comment="VPN client ID"
     )
     expire_date: Mapped[datetime] = Column(
         DateTime, nullable=True, default=None

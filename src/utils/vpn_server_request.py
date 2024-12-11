@@ -1,25 +1,16 @@
-import uuid
-from datetime import timedelta, datetime
 from functools import wraps
 from typing import Literal
 
 from httpx import HTTPStatusError
 from loguru import logger
-from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.crud.vpn_server import VpnServerCrud
+from src.crud.vpn_server import get_vpn_server_crud
+from src.database.database import AsyncSessionLocal
 from src.schemas.response import AdminAuth, ClientSettings, ClientsSettings
-from src.schemas.tariff import TariffSchema
 from src.schemas.vpn_server import VpnServerSchema
 from src.utils import common_request, CommonRequestError
 from src.utils.common import create_vpn_url
 from src.utils.vpn_server import update_cookies
-
-
-class AuthError(Exception):
-    def __init__(self, message):
-        super().__init__(message)
 
 
 class RequestError(Exception):
@@ -27,30 +18,33 @@ class RequestError(Exception):
         super().__init__(message)
 
 
-class ClientCreateError(Exception):
+class AuthError(RequestError):
     def __init__(self, message):
         super().__init__(message)
 
 
-class AuthRequestError(AuthError):
+class ClientError(Exception):
     def __init__(self, message):
         super().__init__(message)
 
 
-async def __create_session(
-    *, session: AsyncSession, crud: VpnServerCrud, url: str
-) -> dict[str, str]:
-    try:
-        vpn_creds = await crud.get_one(session, url=url)
-    except SQLAlchemyError as e:
-        raise AuthError(f"Get vp server credentials failed: {e}")
+class ClientCreateError(ClientError):
+    def __init__(self, message):
+        super().__init__(message)
 
+
+class ClientUpdateError(ClientError):
+    def __init__(self, message):
+        super().__init__(message)
+
+
+async def __create_session(*, vpn_data: VpnServerSchema) -> dict[str, str]:
     auth_settings = AdminAuth(
-        username=vpn_creds.login, password=vpn_creds.password
+        username=vpn_data.login, password=vpn_data.password
     )
     resp = await common_request(
         method="POST",
-        url=f"{url}/login",
+        url=f"{vpn_data.url}/login",
         json_=auth_settings.model_dump(),
         dispatch=False,
     )
@@ -63,16 +57,16 @@ def __auth_if_need(func):
         try:
             return await func(*args, **kwargs)
         except HTTPStatusError:
-            url = kwargs.get("url")
-            session = kwargs.get("session")
-            crud = kwargs.get("crud")
-            logger.info(f"Session {url} expired. Create new")
-            cookies = await __create_session(
-                session=session, crud=crud, url=url
-            )
-            await update_cookies(
-                session=session, crud=crud, url=url, cookies=cookies
-            )
+            vpn_data = kwargs.get("vpn_data")
+            logger.info(f"Session {vpn_data.url} expired. Create new...")
+            cookies = await __create_session(vpn_data=vpn_data)
+            async with AsyncSessionLocal() as session:
+                await update_cookies(
+                    session=session,
+                    crud=get_vpn_server_crud(),
+                    url=vpn_data.url,
+                    cookies=cookies,
+                )
 
         return await func(*args, **kwargs)
 
@@ -84,7 +78,6 @@ async def __vpn_request(
     *,
     vpn_data: VpnServerSchema,
     method: Literal["POST", "GET"],
-    url: str,
     route: str,
     headers: dict = None,
     json_: dict = None,
@@ -93,7 +86,7 @@ async def __vpn_request(
 ) -> dict:
     response = await common_request(
         method=method,
-        url=url + route,
+        url=vpn_data.url + route,
         headers=headers,
         json_=json_,
         request_timeout=request_timeout,
@@ -110,30 +103,14 @@ async def __vpn_request(
 
 
 async def add_vpn_client(
-    *,
-    url: str,
-    telegram_id: int,
-    tariff: TariffSchema,
-    vpn_data: VpnServerSchema,
-    inbound_id: int = 1,
+    *, vpn_data: VpnServerSchema, settings: ClientSettings, inbound_id: int = 1
 ) -> str:
-    days = datetime.now() + timedelta(days=tariff.days)
-    expiry_time = datetime.timestamp(days) * 1000
-    user_id = uuid.uuid4()
-
-    user_setting = ClientSettings(
-        id=user_id,
-        tgId=str(telegram_id),
-        email=str(telegram_id),
-        expiryTime=int(expiry_time),
-    )
-    users_settings = ClientsSettings(clients=[user_setting])
+    users_settings = ClientsSettings(clients=[settings])
 
     try:
         await __vpn_request(
             vpn_data=vpn_data,
             method="POST",
-            url=url,
             route="/panel/api/inbounds/addClient",
             json_={
                 "id": inbound_id,
@@ -146,10 +123,38 @@ async def add_vpn_client(
         raise ClientCreateError(e)
 
     user_link = create_vpn_url(
-        url=url, user_id=user_id, telegram_id=telegram_id, vpn_data=vpn_data
+        url=vpn_data.url,
+        user_id=settings.id,
+        telegram_id=int(settings.tgId),
+        vpn_data=vpn_data,
     )
     logger.debug(
-        f"Add client {user_id!r} (tg_id: {telegram_id}) "
+        f"Add client {settings.id!r} (tg_id: {settings.tgId}) "
         f"to VPN server with link: {user_link}"
     )
     return user_link
+
+
+async def update_vpn_client(
+    *, vpn_data: VpnServerSchema, settings: ClientSettings, inbound_id: int = 1
+) -> None:
+    users_settings = ClientsSettings(clients=[settings])
+
+    try:
+        await __vpn_request(
+            vpn_data=vpn_data,
+            method="POST",
+            route=f"/panel/api/inbounds/updateClient/{settings.id}",
+            json_={
+                "id": inbound_id,
+                "settings": users_settings.model_dump_json(),
+            },
+        )
+    except HTTPStatusError as e:
+        raise ClientUpdateError(e)
+    except CommonRequestError as e:
+        raise ClientUpdateError(e)
+
+    logger.debug(
+        f"Update client {settings.id!r} (tg_id: {settings.tgId}) settings"
+    )

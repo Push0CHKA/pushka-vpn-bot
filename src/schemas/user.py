@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 
 from src.schemas.common import (
@@ -37,6 +38,8 @@ class Fk(OrmSchema):
 
 class UserLinkSchemaCommon(OrmSchema):
     link: str
+    client_id: uuid.UUID
+    client_sub_id: uuid.UUID
     expire_date: datetime
 
     @property

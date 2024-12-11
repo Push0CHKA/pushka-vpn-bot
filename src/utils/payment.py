@@ -1,3 +1,4 @@
+import asyncio
 from secrets import choice
 
 from aiogram import Bot
@@ -10,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.bot.msg import user_msg
 from src.bot.msg.payment_msg import NEW_TRANSACTION_MSG, REFUND_MSG
-from src.crud.transaction import get_transaction_crud
+from src.crud.transaction import TransactionCrud
 from src.models import Transaction
 from src.schemas.transaction import TransactionSchemaCreate
 from src.utils.bot import send_chat_msg
@@ -18,12 +19,12 @@ from src.utils.settings import get_settings, TransactionStatusEnum
 
 
 async def create_transaction(
-    session: AsyncSession, *, payment: SuccessfulPayment
+    session: AsyncSession, *, crud: TransactionCrud, payment: SuccessfulPayment
 ):
-    tariff_id = int(payment.invoice_payload.split("_")[-1])
+    tariff_id = int(payment.invoice_payload.split("_")[1])
     user_id = int(payment.provider_payment_charge_id.split("_")[0])
     transaction_id = payment.telegram_payment_charge_id
-    await get_transaction_crud().create(
+    await crud.create(
         session,
         obj_in=TransactionSchemaCreate(
             user_id=user_id,
@@ -32,14 +33,14 @@ async def create_transaction(
             payment_charge_id=transaction_id,
         ),
     )
-    await session.commit()
+    await session.flush()
     logger.success(f"User {user_id} create transaction {transaction_id!r}")
 
 
 async def mark_transaction_refund(
-    session: AsyncSession, *, payment_charge_id: str
+    session: AsyncSession, *, crud: TransactionCrud, payment_charge_id: str
 ):
-    await get_transaction_crud().update(
+    await crud.update(
         session,
         update_filter={Transaction.payment_charge_id.name: payment_charge_id},
         update_values={Transaction.status.name: TransactionStatusEnum.refund},
@@ -48,8 +49,9 @@ async def mark_transaction_refund(
 
 
 async def transaction_refund(
-    *,
     session: AsyncSession,
+    *,
+    crud: TransactionCrud,
     bot: Bot,
     message: Message,
     user_id: int,
@@ -63,9 +65,10 @@ async def transaction_refund(
         chat_id = get_settings().bot.payments_chat_id
         text = gen_refund_msg(user_id, payment_charge_id)
 
-        await send_chat_msg(bot, chat_id, text)
+        asyncio.ensure_future(send_chat_msg(bot, chat_id, text))
+
         await mark_transaction_refund(
-            session, payment_charge_id=payment_charge_id
+            session, payment_charge_id=payment_charge_id, crud=crud
         )
         await session.commit()
         logger.success(

@@ -1,3 +1,5 @@
+import asyncio
+
 from aiogram.filters import Command, CommandObject
 from aiogram.types import LabeledPrice, PreCheckoutQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -8,6 +10,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from src.bot.callback.user_callback import BuyCallback
 from src.bot.msg import user_msg
 from src.bot.utils.filters import ChatTypeFilter
+from src.crud.transaction import get_transaction_crud
+from src.crud.user import get_user_link_crud
 from src.database.database import AsyncSessionLocal
 from src.utils.bot import send_chat_msg
 from src.utils.payment import (
@@ -17,6 +21,9 @@ from src.utils.payment import (
 )
 from src.utils.settings import get_settings
 from src.utils.tariff import get_tariff
+from src.utils.user import update_user_link_expire_date
+from src.utils.vpn_client import update_user_expire_date
+from src.utils.vpn_server_request import ClientError
 
 
 def get_payment_router() -> Router:
@@ -62,7 +69,7 @@ async def order_callback(
         chat_id=callback.from_user.id,
         title="Оплата подписки",
         description=f"Подписка на {tariff.days} дней",
-        payload=f"tariff_{tariff_id}",
+        payload=f"tariff_{tariff_id}_{tariff.days}",
         currency=get_settings().pay.currency,
         provider_token=get_settings().pay.token,
         disable_notification=False,
@@ -83,24 +90,56 @@ async def pre_checkout_handler(pre_checkout_query: PreCheckoutQuery):
 @payment_router.message(F.successful_payment)
 async def process_successful_payment(message: Message, bot: Bot):
     """Successful payment handler"""
-    logger.debug(f"User {message.from_user.id} successful payment")
+    user_id = message.from_user.id
+    logger.debug(f"User {user_id} successful payment")
+
     charge_id = message.successful_payment.telegram_payment_charge_id
+    tariff_days = int(message.successful_payment.invoice_payload.split("_")[2])
     payments_chat_id = get_settings().bot.payments_chat_id
     text = gen_payment_msg(message.successful_payment)
+
+    have_error = False
 
     try:
         async with AsyncSessionLocal() as session:
             await create_transaction(
-                session, payment=message.successful_payment
+                session,
+                payment=message.successful_payment,
+                crud=get_transaction_crud(),
             )
+
+            await update_user_link_expire_date(
+                session,
+                user_id=user_id,
+                days=tariff_days,
+                crud=get_user_link_crud(),
+            )
+            await session.commit()
+
+            asyncio.ensure_future(
+                update_user_expire_date(
+                    user_id=user_id,
+                    days=tariff_days,
+                    server_id=get_settings().pay.server_id,
+                )
+            )
+    except ClientError as e:
+        logger.error(e)
+        have_error = True
     except (SQLAlchemyError, ValueError) as e:
         logger.critical(f"Create transaction failed: {e}")
+        have_error = True
     except Exception as e:
         logger.critical(f"Unhandled error when create transaction: {e}")
+        have_error = True
 
-    await send_chat_msg(bot, payments_chat_id, text)
-
-    await message.answer(user_msg.SUCCESS_PAY_MSG.format(charge_id=charge_id))
+    if have_error:
+        await message.answer(text=user_msg.COMMON_ERROR_MSG)
+    else:
+        asyncio.ensure_future(send_chat_msg(bot, payments_chat_id, text))
+        await message.answer(
+            user_msg.SUCCESS_PAY_MSG.format(charge_id=charge_id)
+        )
 
 
 @payment_router.message(Command("refund"))
@@ -117,7 +156,8 @@ async def command_refund_handler(
     if get_settings().pay.debug:
         async with AsyncSessionLocal() as session:
             await transaction_refund(
-                session=session,
+                session,
+                crud=get_transaction_crud(),
                 bot=bot,
                 message=message,
                 user_id=user_id,
