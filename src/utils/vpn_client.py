@@ -96,6 +96,7 @@ async def create_client(
             return await add_user_link(
                 session,
                 link=link,
+                server_id=server_id,
                 settings=settings,
                 expire_date=expire_date,
                 crud=get_user_link_crud(),
@@ -105,6 +106,9 @@ async def create_client(
 
 
 async def get_or_create_user_link(user_id: int) -> UserLinkSchema:
+    server_id, _ = Servers().get_free_server()
+    if server_id is None:
+        raise ClientCreateError("No VPN servers")
     try:
         async with AsyncSessionLocal() as session:
             return await get_user_link(
@@ -114,17 +118,24 @@ async def get_or_create_user_link(user_id: int) -> UserLinkSchema:
         return await create_client(
             tariff_id=get_settings().pay.trial_id,
             user_id=user_id,
-            server_id=get_settings().pay.server_id,
+            server_id=server_id,
         )
 
 
-async def update_user_expire_date(*, user_id: int, server_id: UUID, days: int):
+async def update_user_expire_date(*, user_id: int, days: int):
     async with AsyncSessionLocal() as session:
+        try:
+            user_link = await get_user_link(
+                session=session, crud=get_user_link_crud(), user_id=user_id
+            )
+        except SQLAlchemyError as e:
+            raise SQLAlchemyError(f"Get user link data failed: {e}")
+
         try:
             vpn_data = await get_vpn_data(
                 session=session,
                 crud=get_vpn_server_crud(),
-                server_id=server_id,
+                server_id=user_link.server_id,
             )
         except SQLAlchemyError as e:
             raise SQLAlchemyError(f"Get vpn server data failed: {e}")

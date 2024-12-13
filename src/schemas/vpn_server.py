@@ -42,11 +42,13 @@ class Servers(metaclass=Singleton):
         cls.__server_ids[server_id.hex] = members
 
     @classmethod
-    def get_free_server(cls) -> tuple[str | None, int]:
+    def get_free_server(cls) -> tuple[uuid.UUID | None, int]:
         server_id = None
-        members = -1
-        for serv_id, memb in cls.__server_ids:
-            if memb < members:
+        members = 10000
+        for serv_id, memb in cls.__server_ids.items():
+            if memb <= members:
                 members = memb
-                server_id = server_id
-        return server_id, members
+                server_id = serv_id
+        if server_id is None:
+            return server_id, -1
+        return uuid.UUID(server_id), members

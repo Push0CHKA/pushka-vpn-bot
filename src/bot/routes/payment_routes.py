@@ -117,11 +117,7 @@ async def process_successful_payment(message: Message, bot: Bot):
             await session.commit()
 
             asyncio.ensure_future(
-                update_user_expire_date(
-                    user_id=user_id,
-                    days=tariff_days,
-                    server_id=get_settings().pay.server_id,
-                )
+                update_user_expire_date(user_id=user_id, days=tariff_days)
             )
     except ClientError as e:
         logger.error(e)

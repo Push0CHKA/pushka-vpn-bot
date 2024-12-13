@@ -3,7 +3,6 @@ from enum import Enum
 from functools import cache
 from pathlib import Path
 from typing import Any, Annotated
-from uuid import UUID
 
 from aiogram.types import BotCommand
 from dotenv import load_dotenv, find_dotenv
@@ -71,7 +70,6 @@ class PaymentSettings(BaseSettings):
     token: str = Field(description="Payment token")
     currency: Annotated[str, "Payment currency"] = "XTR"
     trial_id: int = Field(description="Trial tariff ID")
-    server_id: UUID = Field(description="VPN server ID")
     message_effect_id_list: Annotated[
         list[str], "Success payment effect ID"
     ] = [

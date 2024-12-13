@@ -1,9 +1,10 @@
 from sqlalchemy import Column, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped
+from sqlalchemy.orm import Mapped, relationship
 
 from src.database.database import Base
 from src.database.mixins import DateTimeCreateMixin, UUIDMixin
+from src.models import UserLink
 
 
 class VpnServer(UUIDMixin, DateTimeCreateMixin, Base):
@@ -21,3 +22,7 @@ class VpnServer(UUIDMixin, DateTimeCreateMixin, Base):
     flow: Mapped[str] = Column(String, default=None)
     port: Mapped[int] = Column(Integer, default=None)
     members_count: Mapped[int] = Column(Integer, nullable=False, default=0)
+
+    user_links: Mapped[list["UserLink"]] = relationship(
+        "UserLink", back_populates="vpn_server"
+    )

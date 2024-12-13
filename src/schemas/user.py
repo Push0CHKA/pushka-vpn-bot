@@ -34,6 +34,7 @@ class UserWithTransactionsSchema(UserSchema):
 
 class Fk(OrmSchema):
     user_id: int
+    server_id: uuid.UUID
 
 
 class UserLinkSchemaCommon(OrmSchema):

@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 
 from asyncpg.pgproto.pgproto import timedelta
@@ -5,7 +6,12 @@ from loguru import logger
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError, NoResultFound
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.crud.user import UserLinkCrud, UserCrud, UserLinkWithUserCrud
+from src.crud.user import (
+    UserLinkCrud,
+    UserCrud,
+    UserLinkWithUserCrud,
+    UserWithLinksCrud,
+)
 from src.models import User, UserLink
 from src.schemas.response import ClientSettings
 from src.schemas.user import (
@@ -14,6 +20,7 @@ from src.schemas.user import (
     UserLinkSchema,
     UserLinkSchemaCreate,
     UserLinkWithUserSchema,
+    UserWithLinksSchema,
 )
 from src.utils.settings import StatusTypeEnum
 
@@ -46,8 +53,8 @@ async def add_user(
 
 
 async def get_user(
-    session: AsyncSession, *, crud: UserCrud, user_id: int
-) -> UserSchema:
+    session: AsyncSession, *, crud: UserCrud | UserWithLinksCrud, user_id: int
+) -> UserSchema | UserWithLinksSchema:
     try:
         return await crud.get_one(session, id=user_id)
     except NoResultFound:
@@ -65,6 +72,7 @@ async def add_user_link(
     *,
     crud: UserLinkCrud,
     link: str,
+    server_id: uuid.UUID,
     expire_date: datetime,
     settings: ClientSettings,
 ) -> UserLinkSchema:
@@ -73,6 +81,7 @@ async def add_user_link(
             session,
             obj_in=UserLinkSchemaCreate(
                 link=link,
+                server_id=server_id,
                 expire_date=expire_date,
                 client_id=settings.id,
                 user_id=settings.tgId,

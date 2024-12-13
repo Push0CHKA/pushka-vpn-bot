@@ -12,7 +12,7 @@ from src.utils.settings import StatusTypeEnum
 
 
 if typing.TYPE_CHECKING:
-    from src.models import Transaction
+    from src.models import Transaction, VpnServer
 
 
 class User(DateTimeCreateMixin, Base):
@@ -37,6 +37,11 @@ class UserLink(UUIDMixin, DateTimeCreateMixin, Base):
         primary_key=False,
         unique=True,
     )
+    server_id: Mapped[uuid.UUID] = Column(
+        ForeignKey(id_column("VpnServer.id"), ondelete="SET NULL"),
+        nullable=False,
+        primary_key=False,
+    )
     link: Mapped[str] = Column(
         String, unique=True, nullable=False, comment="VPN link"
     )
@@ -51,4 +56,7 @@ class UserLink(UUIDMixin, DateTimeCreateMixin, Base):
     )
     user: Mapped["User"] = relationship(
         "User", back_populates="links", uselist=True, lazy="selectin"
+    )
+    vpn_server: Mapped["VpnServer"] = relationship(
+        "VpnServer", back_populates="user_links"
     )
