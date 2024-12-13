@@ -57,7 +57,6 @@ class BotSettings(BaseSettings):
     default_commands: list[BotCommand] = [
         BotCommand(command="start", description="Главное меню"),
         BotCommand(command="help", description="Помощь"),
-        BotCommand(command="pay", description="Оплатить подписку"),
         BotCommand(command="refund", description="Возврат средств"),
     ]
 

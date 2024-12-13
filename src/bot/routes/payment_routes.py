@@ -42,7 +42,7 @@ async def order_callback(
 
     def payment_keyboard(price: int):
         builder = InlineKeyboardBuilder()
-        builder.button(text=f"Оплатить {price}", pay=True)
+        builder.button(text=f"Заплатить {price} ⭐️", pay=True)
 
         return builder.as_markup()
 
