@@ -4,16 +4,19 @@ from uuid import UUID
 
 from asyncpg.pgproto.pgproto import timedelta
 from sqlalchemy.exc import SQLAlchemyError, NoResultFound
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.crud.user import (
     get_user_crud,
     get_user_link_crud,
     get_user_link_with_user_crud,
 )
-from src.crud.vpn_server import get_vpn_server_crud
+from src.crud.vpn_server import get_vpn_server_crud, VpnServerCrud
 from src.database.database import AsyncSessionLocal
+from src.models import VpnServer
 from src.schemas.response import ClientSettings
 from src.schemas.user import UserLinkSchema
+from src.schemas.vpn_server import Servers
 from src.utils.settings import StatusTypeEnum, get_settings
 from src.utils.tariff import get_tariff
 from src.utils.user import get_user, add_user_link, get_user_link
@@ -22,6 +25,7 @@ from src.utils.vpn_server_request import (
     ClientCreateError,
     add_vpn_client,
     update_vpn_client,
+    get_vpn_clients,
 )
 
 
@@ -141,3 +145,20 @@ async def update_user_expire_date(*, user_id: int, server_id: UUID, days: int):
         )
 
         await update_vpn_client(vpn_data=vpn_data, settings=settings)
+
+
+async def update_vpn_server_clients(
+    *, session: AsyncSession, crud: VpnServerCrud
+):
+    vpn_data = await crud.get_multi(session)
+    for vpn in vpn_data:
+        response = await get_vpn_clients(vpn_data=vpn)
+        members = len(response.obj[0].clientStats)
+        await crud.update(
+            session,
+            update_filter={VpnServer.id.name: vpn.id},
+            update_values={VpnServer.members_count.name: members},
+        )
+        await session.flush()
+        Servers().add_or_update_server(vpn.id, members)
+    await session.commit()

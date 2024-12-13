@@ -6,7 +6,12 @@ from loguru import logger
 
 from src.crud.vpn_server import get_vpn_server_crud
 from src.database.database import AsyncSessionLocal
-from src.schemas.response import AdminAuth, ClientSettings, ClientsSettings
+from src.schemas.response import (
+    AdminAuth,
+    ClientSettings,
+    ClientsSettings,
+    VpnServerResponse,
+)
 from src.schemas.vpn_server import VpnServerSchema
 from src.utils import common_request, CommonRequestError
 from src.utils.common import create_vpn_url
@@ -83,6 +88,7 @@ async def __vpn_request(
     json_: dict = None,
     request_timeout: float = 10,
     verify: bool = False,
+    dispatch: bool = True,
 ) -> dict:
     response = await common_request(
         method=method,
@@ -90,7 +96,7 @@ async def __vpn_request(
         headers=headers,
         json_=json_,
         request_timeout=request_timeout,
-        dispatch=True,
+        dispatch=dispatch,
         verify=verify,
         cookies=vpn_data.cookies,
     )
@@ -158,3 +164,13 @@ async def update_vpn_client(
     logger.debug(
         f"Update client {settings.id!r} (tg_id: {settings.tgId}) settings"
     )
+
+
+async def get_vpn_clients(*, vpn_data: VpnServerSchema) -> VpnServerResponse:
+    try:
+        response = await __vpn_request(
+            vpn_data=vpn_data, method="GET", route=f"/panel/api/inbounds/list"
+        )
+    except HTTPStatusError as e:
+        raise CommonRequestError(e)
+    return VpnServerResponse.model_validate(response)

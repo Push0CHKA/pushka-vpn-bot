@@ -7,7 +7,7 @@ from uuid import UUID
 
 from aiogram.types import BotCommand
 from dotenv import load_dotenv, find_dotenv
-from pydantic import Field, model_validator
+from pydantic import Field, model_validator, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -134,6 +134,21 @@ class DBSettings(BaseSettings):
         )
 
 
+class SynchronizerSettings(BaseSettings):
+    """Synchronizer settings"""
+
+    model_config = SettingsConfigDict(env_prefix="synchronizer_")
+
+    ask_period: int = Field(
+        default=15,
+        description="Frequency of synchronization with the server in minutes",
+    )
+
+    @field_validator("ask_period", mode="after")
+    def convert_bytes(cls, value: Any) -> int:
+        return value * 60
+
+
 class ApiSettings(BaseSettings):
     """3x-ui API settings"""
 
@@ -148,6 +163,7 @@ class Settings(BaseSettings):
     log: LogSettings = Field(default_factory=LogSettings)
     db: DBSettings = Field(default_factory=DBSettings)
     api: ApiSettings = Field(default_factory=ApiSettings)
+    sync: SynchronizerSettings = Field(default_factory=SynchronizerSettings)
 
 
 class AlembicSettings(BaseSettings):

@@ -1,8 +1,11 @@
+import uuid
+
 from src.schemas.common import (
     OrmSchema,
     CreateDateTimeMixinSchema,
     UUIDIndexSchema,
 )
+from src.utils import Singleton
 
 
 class VpnServerSchemaCreate(OrmSchema):
@@ -25,3 +28,25 @@ class VpnServerSchemaCreate(OrmSchema):
 class VpnServerSchema(
     UUIDIndexSchema, VpnServerSchemaCreate, CreateDateTimeMixinSchema
 ): ...
+
+
+class Servers(metaclass=Singleton):
+    __server_ids: dict[str, int] = {}
+
+    @classmethod
+    def get_servers(cls) -> dict[str, int]:
+        return cls.__server_ids
+
+    @classmethod
+    def add_or_update_server(cls, server_id: uuid.UUID, members: int):
+        cls.__server_ids[server_id.hex] = members
+
+    @classmethod
+    def get_free_server(cls) -> tuple[str | None, int]:
+        server_id = None
+        members = -1
+        for serv_id, memb in cls.__server_ids:
+            if memb < members:
+                members = memb
+                server_id = server_id
+        return server_id, members
